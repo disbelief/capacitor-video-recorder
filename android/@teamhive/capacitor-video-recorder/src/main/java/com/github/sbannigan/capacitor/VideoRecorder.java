@@ -238,8 +238,10 @@ public class VideoRecorder extends Plugin {
     public void showPreviewFrame(PluginCall call) {
         int position = call.getInt("position");
         int quality = call.getInt("quality");
+        boolean audio = call.getBoolean("audio", true);
         fancyCamera.setCameraPosition(position);
         fancyCamera.setQuality(quality);
+        fancyCamera.setEnableAudioLevels(audio);
         bridge.getWebView().setBackgroundColor(Color.argb(0, 0, 0, 0));
         if (!fancyCamera.cameraStarted()) {
             startCamera();
