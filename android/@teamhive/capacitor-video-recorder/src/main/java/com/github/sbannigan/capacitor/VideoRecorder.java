@@ -43,6 +43,7 @@ public class VideoRecorder extends Plugin {
     private FancyCamera.CameraPosition cameraPosition = FancyCamera.CameraPosition.FRONT;
     private Timer audioFeedbackTimer;
     private boolean timerStarted;
+    private boolean audio = true;
 
     PluginCall getCall() {
         return call;
@@ -73,6 +74,9 @@ public class VideoRecorder extends Plugin {
     }
 
     private void startTimer() {
+        if (!this.audio) {
+            return;
+        }
         if (timerStarted) {
             return;
         }
@@ -119,6 +123,7 @@ public class VideoRecorder extends Plugin {
         defaultFrame.put("id", "default");
         currentFrameConfig = new FrameConfig(defaultFrame);
         previewFrameConfigs = new HashMap<>();
+        this.audio = call.getBoolean("audio", this.audio);
 
         fancyCamera = new FancyCamera(this.getContext());
         fancyCamera.setListener(new CameraEventListenerUI() {
@@ -238,10 +243,10 @@ public class VideoRecorder extends Plugin {
     public void showPreviewFrame(PluginCall call) {
         int position = call.getInt("position");
         int quality = call.getInt("quality");
-        boolean audio = call.getBoolean("audio", true);
+        this.audio = call.getBoolean("audio", this.audio);
         fancyCamera.setCameraPosition(position);
         fancyCamera.setQuality(quality);
-        fancyCamera.setEnableAudioLevels(audio);
+        fancyCamera.setEnableAudioLevels(this.audio);
         bridge.getWebView().setBackgroundColor(Color.argb(0, 0, 0, 0));
         if (!fancyCamera.cameraStarted()) {
             startCamera();
