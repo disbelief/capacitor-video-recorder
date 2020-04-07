@@ -5,6 +5,7 @@ import android.net.Uri;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.appcompat.app.AppCompatActivity;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
@@ -26,8 +27,7 @@ import java.util.TimerTask;
 import co.fitcom.fancycamera.CameraEventListenerUI;
 import co.fitcom.fancycamera.EventType;
 import co.fitcom.fancycamera.FancyCamera;
-import co.fitcom.fancycamera.PhotoEvent;
-import co.fitcom.fancycamera.VideoEvent;
+import co.fitcom.fancycamera.Event;
 
 @NativePlugin(
         requestCodes = {
@@ -41,6 +41,7 @@ public class VideoRecorder extends Plugin {
     private HashMap<String, FrameConfig> previewFrameConfigs;
     private FrameConfig currentFrameConfig;
     private FancyCamera.CameraPosition cameraPosition = FancyCamera.CameraPosition.FRONT;
+    private FancyCamera.Quality cameraQuality = FancyCamera.Quality.values()[0];
     private Timer audioFeedbackTimer;
     private boolean timerStarted;
     private boolean audio = true;
@@ -69,7 +70,7 @@ public class VideoRecorder extends Plugin {
     }
 
     private void startCamera() {
-        if (fancyCamera == null || fancyCamera.cameraStarted()) return;
+        if (fancyCamera == null) return;
         fancyCamera.start();
     }
 
@@ -95,7 +96,7 @@ public class VideoRecorder extends Plugin {
                     @Override
                     public void run() {
                         JSObject object = new JSObject();
-                        double db = fancyCamera != null ? fancyCamera.getDB() : 0;
+                        double db = fancyCamera != null ? fancyCamera.getDb() : 0;
                         object.put("value", db);
                         notifyListeners("onVolumeInput", object);
                     }
@@ -143,33 +144,21 @@ public class VideoRecorder extends Plugin {
             }
 
             @Override
-            public void onPhotoEventUI(PhotoEvent event) {
-
-            }
-
-            @Override
-            public void onVideoEventUI(VideoEvent event) {
-                if (event.getType() == EventType.INFO &&
-                        event
-                                .getMessage().contains(VideoEvent.EventInfo.RECORDING_FINISHED.toString())) {
-                    if (getCall() != null) {
-                        JSObject object = new JSObject();
-                        String path = FileUtils.getPortablePath(getContext(), bridge.getLocalUrl(), Uri.fromFile(event.getFile()));
-                        object.put("videoUrl", path);
-                        getCall().resolve(object);
-                    } else {
-                        if (event.getType() == co.fitcom.fancycamera.EventType.ERROR) {
-                            getCall().reject(event.getMessage());
+            public void onEventUI(Event event) {
+                if (event.getType() == EventType.Video) {
+                    String eventMessage = event.getMessage();
+                    if (eventMessage == null && event.getFile() != null) {
+                        if (getCall() != null) {
+                            JSObject object = new JSObject();
+                            String path = FileUtils.getPortablePath(getContext(), bridge.getLocalUrl(), Uri.fromFile(event.getFile()));
+                            object.put("videoUrl", path);
+                            getCall().resolve(object);
+                        }
+                    } else if (eventMessage != null && event.getFile() == null) {
+                        if (getCall() != null) {
+                            getCall().success();
                         }
                     }
-
-                } else if (event.getType() == EventType.INFO &&
-                        event
-                                .getMessage().contains(VideoEvent.EventInfo.RECORDING_STARTED.toString())) {
-                    if (getCall() != null) {
-                        getCall().success();
-                    }
-
                 }
             }
         });
@@ -201,20 +190,12 @@ public class VideoRecorder extends Plugin {
             }
         }
 
-        fancyCamera.setCameraPosition(1);
         if (fancyCamera.hasPermission()) {
+            int position = call.getInt("camera", 0);
             // Swapping these around since it is the other way for iOS and the plugin interface needs to stay consistent
-            if (call.getInt("camera") == 1) {
-                fancyCamera.setCameraPosition(0);
-            } else if (call.getInt("camera") == 0) {
-                fancyCamera.setCameraPosition(1);
-            } else {
-                fancyCamera.setCameraPosition(1);
-            }
-
-            if (!fancyCamera.cameraStarted()) {
-                startCamera();
-            }
+            this.cameraPosition = position == 0 ? FancyCamera.CameraPosition.FRONT : FancyCamera.CameraPosition.BACK;
+            fancyCamera.setCameraPosition(this.cameraPosition);
+            startCamera();
         } else {
             fancyCamera.requestPermission();
         }
@@ -241,19 +222,23 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void showPreviewFrame(PluginCall call) {
-        int position = call.getInt("position");
-        int quality = call.getInt("quality");
+        int position = call.getInt("position", 0);
+        int quality = call.getInt("quality", 0);
         this.audio = call.getBoolean("audio", this.audio);
-        fancyCamera.setCameraPosition(position);
-        fancyCamera.setQuality(quality);
+        this.cameraPosition = position == 0 ? FancyCamera.CameraPosition.FRONT : FancyCamera.CameraPosition.BACK;
+        this.cameraQuality = FancyCamera.Quality.values()[quality];
+        fancyCamera.setCameraPosition(this.cameraPosition);
+        fancyCamera.setQuality(this.cameraQuality);
         fancyCamera.setEnableAudioLevels(this.audio);
         bridge.getWebView().setBackgroundColor(Color.argb(0, 0, 0, 0));
-        if (!fancyCamera.cameraStarted()) {
-            startCamera();
-            this.call = call;
-        } else {
-            call.success();
-        }
+        startCamera();
+        this.call = call;
+//        if (!fancyCamera.cameraStarted()) {
+//            startCamera();
+//            this.call = call;
+//        } else {
+//            call.success();
+//        }
     }
 
     @PluginMethod()
@@ -297,18 +282,26 @@ public class VideoRecorder extends Plugin {
     @PluginMethod()
     public void setPosition(PluginCall call) {
         int position = call.getInt("position");
-        fancyCamera.setCameraPosition(position);
+        this.cameraPosition = position == 0 ? FancyCamera.CameraPosition.FRONT : FancyCamera.CameraPosition.BACK;
+        fancyCamera.setCameraPosition(this.cameraPosition);
     }
 
     @PluginMethod()
     public void setQuality(PluginCall call) {
         int quality = call.getInt("quality");
-        fancyCamera.setQuality(quality);
+        this.cameraQuality = FancyCamera.Quality.values()[quality];
+        fancyCamera.setQuality(this.cameraQuality);
+    }
+
+    @PluginMethod()
+    public void setAudio(PluginCall call) {
+        this.audio = call.getBoolean("audio", this.audio);
+        fancyCamera.setEnableAudioLevels(this.audio);
     }
 
     @PluginMethod()
     public void addPreviewFrameConfig(PluginCall call) {
-        if (fancyCamera.cameraStarted()) {
+        if (fancyCamera != null) {
             String layerId = call.getString("id");
             if (layerId.isEmpty()) {
                 call.error("Must provide layer id");
@@ -329,7 +322,7 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void editPreviewFrameConfig(PluginCall call) {
-        if (fancyCamera.cameraStarted()) {
+        if (fancyCamera != null) {
             String layerId = call.getString("id");
             if (layerId.isEmpty()) {
                 call.error("Must provide layer id");
@@ -351,7 +344,7 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void switchToPreviewFrame(PluginCall call) {
-        if (fancyCamera.cameraStarted()) {
+        if (fancyCamera != null) {
             String layerId = call.getString("id");
             if (layerId.isEmpty()) {
                 call.error("Must provide layer id");
