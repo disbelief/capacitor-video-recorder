@@ -22,6 +22,7 @@ public class CAPVideoRecorderPlugin: CAPPlugin, AVCaptureFileOutputRecordingDele
     var frontCamera: AVCaptureDevice?
     var backCamera: AVCaptureDevice?
     var quality: Int = 0
+    var audio: Bool = true
 
     var stopRecordingCall: CAPPluginCall?
 
@@ -59,6 +60,7 @@ public class CAPVideoRecorderPlugin: CAPPlugin, AVCaptureFileOutputRecordingDele
         if (self.captureSession?.isRunning != true) {
             self.currentCamera = call.getInt("camera", 0)!
             self.quality = call.getInt("quality", 0)!
+            self.audio = call.getBool("audio", true)!
             let autoShow = call.getBool("autoShow", true)!
 
             for frameConfig in call.getArray("previewFrames", [AnyHashable: Any].self, [ ["id": "default"] ])! {
@@ -106,9 +108,11 @@ public class CAPVideoRecorderPlugin: CAPPlugin, AVCaptureFileOutputRecordingDele
                         self.cameraInput = try createCaptureDeviceInput(currentCamera: self.currentCamera, frontCamera: self.frontCamera, backCamera: self.backCamera)
                         self.captureSession!.addInput(self.cameraInput!)
                         // Add Microphone Input
-                        let microphone = AVCaptureDevice.default(for: .audio)
-                        if let audioInput = try? AVCaptureDeviceInput(device: microphone!), (self.captureSession?.canAddInput(audioInput))! {
-                            self.captureSession!.addInput(audioInput)
+                        if self.audio {
+                            let microphone = AVCaptureDevice.default(for: .audio)
+                            if let audioInput = try? AVCaptureDeviceInput(device: microphone!), (self.captureSession?.canAddInput(audioInput))! {
+                                self.captureSession!.addInput(audioInput)
+                            }
                         }
                         // Add Video File Output
                         self.videoOutput = AVCaptureMovieFileOutput()

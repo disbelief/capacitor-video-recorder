@@ -46,6 +46,7 @@ export const VideoRecorderErrors = {
 export interface VideoRecorderOptions {
 	camera?: VideoRecorderCamera;
 	quality?: VideoRecorderQuality;
+	audio?: boolean;
 	autoShow?: boolean;
 	previewFrames?: VideoRecorderPreviewFrame[];
 }
