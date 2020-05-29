@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.util.DisplayMetrics;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.util.Log;
 
 import com.getcapacitor.FileUtils;
 import com.getcapacitor.JSArray;
@@ -19,6 +20,7 @@ import com.getcapacitor.PluginMethod;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -35,6 +37,7 @@ import co.fitcom.fancycamera.VideoEvent;
         }
 )
 public class VideoRecorder extends Plugin {
+    static final String LOG_TAG = "PlaytimeVideoRec";
     static final int REQUEST_CODE = 868;
     private FancyCamera fancyCamera;
     private PluginCall call;
@@ -149,6 +152,7 @@ public class VideoRecorder extends Plugin {
 
             @Override
             public void onVideoEventUI(VideoEvent event) {
+                Log.i(LOG_TAG, String.format("video event type %s message: %s", event.getType().name(), event.getMessage()));
                 if (event.getType() == EventType.INFO &&
                         event
                                 .getMessage().contains(VideoEvent.EventInfo.RECORDING_FINISHED.toString())) {
@@ -217,6 +221,9 @@ public class VideoRecorder extends Plugin {
             }
         } else {
             fancyCamera.requestPermission();
+//            if (!fancyCamera.hasStoragePermission()) {
+//                fancyCamera.requestStoragePermission();
+//            }
         }
 
         this.call = call;
@@ -270,9 +277,27 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void startRecording(PluginCall call) {
+        Log.i(LOG_TAG, "startRecording");
         this.call = call;
-        fancyCamera.startRecording();
-        // call.success();
+        if (this.fancyCamera.hasStoragePermission()) {
+            Log.i(LOG_TAG, "Camera HAS storage permission");
+        } else {
+            Log.i(LOG_TAG, "Camera does NOT have storage permission");
+            this.fancyCamera.requestStoragePermission();
+            if (!this.fancyCamera.hasStoragePermission()) {
+                Log.i(LOG_TAG, "Camera STILL does NOT have storage permission");
+                call.error("Do not have permission to write to storage");
+                return;
+            }
+        }
+        try {
+            fancyCamera.startRecording();
+            call.success();
+        } catch (Exception e) {
+            Log.e(LOG_TAG, "startRecording failed", e);
+            call.error(e.toString());
+            throw e;
+        }
     }
 
     @PluginMethod()
