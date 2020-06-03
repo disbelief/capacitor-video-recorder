@@ -49,7 +49,10 @@ export declare const VideoRecorderErrors: {
 export interface VideoRecorderOptions {
     camera?: VideoRecorderCamera;
     quality?: VideoRecorderQuality;
+<<<<<<< HEAD
     audio?: boolean;
+=======
+>>>>>>> Include built javascript so this repo can be installed directly
     autoShow?: boolean;
     previewFrames?: VideoRecorderPreviewFrame[];
 }
