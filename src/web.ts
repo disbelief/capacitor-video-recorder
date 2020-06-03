@@ -4,19 +4,19 @@ import { VideoRecorderPlugin, VideoRecorderOptions, VideoRecorderPreviewFrame } 
 class DropShadow {
 	opacity?: number;
 	radius?: number;
-	color?: string;
+	color?: string | null;
 
 	constructor(options: DropShadow = <DropShadow>{}) {
 		this.opacity = options.opacity || 0;
 		this.radius = options.radius || 0;
 		this.color = hexToRgb(options.color || '#000000');
 
-		function hexToRgb(hex: string): string {
+		function hexToRgb(hex: string): string | null {
 			let shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-			hex = hex.replace(shorthandRegex, function(_m, r, g, b) {
+			let fullHex = hex = hex.replace(shorthandRegex, function(_m, r, g, b) {
 				return r + r + g + g + b + b;
 			});
-			let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+			let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
 			return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : null;
 		}
 	}
@@ -46,72 +46,87 @@ class FrameConfig {
 
 export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 
-	videoElement: HTMLVideoElement;
-	stream: MediaStream;
+	videoElement: HTMLVideoElement | null;
+	stream: MediaStream | null;
 
 	previewFrameConfigs: FrameConfig[] = [];
-	currentFrameConfig: FrameConfig = new FrameConfig({id: 'default'});
+	currentFrameConfig: FrameConfig | undefined = new FrameConfig({id: 'default'});
 
 	constructor() {
 		super({
 			name: 'VideoRecorder',
 			platforms: ['web']
 		});
+		this.videoElement = null;
+		this.stream = null;
 	}
 
-	private _initializeCameraView() {
-		this.videoElement = document.createElement('video');
-		this.videoElement.autoplay = true;
-		this.videoElement.hidden = true;
-		this.videoElement.style.cssText = `
+	private _initializeCameraView(): HTMLVideoElement {
+		let element = document.createElement('video');
+		element.autoplay = true;
+		element.hidden = true;
+		element.style.cssText = `
 			object-fit: cover;
 			pointer-events: none;
 			position: absolute;
 		`;
-		document.body.appendChild(this.videoElement);
+		document.body.appendChild(element);
 
-		this._updateCameraView(this.currentFrameConfig);
+		return element;
 	}
 
-	private _updateCameraView(config: FrameConfig) {
-		this.videoElement.style.width = config.width === 'fill' ? '100vw' : `${config.width}px`;
-		this.videoElement.style.height = config.height === 'fill' ? '100vh' : `${config.height}px`;
-		this.videoElement.style.left = `${config.x}px`;
-		this.videoElement.style.top = `${config.y}px`;
-		this.videoElement.style.zIndex = config.stackPosition === 'back' ? '-1' : '99999';
-		this.videoElement.style.borderRadius = `${config.borderRadius}px`;
-		this.videoElement.style.boxShadow = `0 0 ${config.dropShadow.radius}px 0 rgba(${config.dropShadow.color}, ${config.dropShadow.opacity})`;
+	private _updateCameraView(config: FrameConfig): void {
+		if (this.videoElement !== null) {
+			this.videoElement.style.width = config.width === 'fill' ? '100vw' : `${config.width}px`;
+			this.videoElement.style.height = config.height === 'fill' ? '100vh' : `${config.height}px`;
+			this.videoElement.style.left = `${config.x}px`;
+			this.videoElement.style.top = `${config.y}px`;
+			this.videoElement.style.zIndex = config.stackPosition === 'back' ? '-1' : '99999';
+			this.videoElement.style.borderRadius = `${config.borderRadius}px`;
+			this.videoElement.style.boxShadow = `0 0 ${config.dropShadow?.radius || 0}px 0 rgba(${config.dropShadow?.color}, ${config.dropShadow?.opacity})`;
+		}
 	}
 
 	async initialize(options?: VideoRecorderOptions): Promise<void> {
 		console.warn('VideoRecorder: Web implementation is currently for mock purposes only, recording is not available');
-		let previewFrames = options.previewFrames.length > 0 ? options.previewFrames : [{id: 'default'}];
-		this.previewFrameConfigs = previewFrames.map(config => new FrameConfig(config));
-		this.currentFrameConfig = this.previewFrameConfigs[0];
+		if (options?.previewFrames) {
+			let framesNumber = options.previewFrames.length;
+			let previewFrames = framesNumber > 0 ? options.previewFrames : [{id: 'default'}];
+			this.previewFrameConfigs = previewFrames.map(config => new FrameConfig(config));
+			this.currentFrameConfig = this.previewFrameConfigs[0];
+		}
 		
-		this._initializeCameraView();
+		this.videoElement = this._initializeCameraView();
+		if (this.currentFrameConfig) {
+			this._updateCameraView(this.currentFrameConfig);
+		}
 
-		if (options.autoShow !== false) {
+		if (options?.autoShow !== false && this.videoElement) {
 			this.videoElement.hidden = false;
 		}
 
-		if (navigator.mediaDevices.getUserMedia) {       
+		if (navigator.mediaDevices?.getUserMedia) {
 			this.stream = await navigator.mediaDevices.getUserMedia({video: true})
-			this.videoElement.srcObject = this.stream;
+			if (this.videoElement) {
+				this.videoElement.srcObject = this.stream;
+			}
 		}
-    	return Promise.resolve();
+    return Promise.resolve();
 	}
+
 	destroy(): Promise<any> {
-		this.videoElement.remove();
+		this.videoElement?.remove();
 		this.previewFrameConfigs = [];
 		this.currentFrameConfig = undefined;
-		this.stream.getTracks().forEach(track => track.stop());
-    	return Promise.resolve();
+		this.stream?.getTracks().forEach(track => track.stop());
+    return Promise.resolve();
 	}
+
 	flipCamera(): Promise<void> {
 		console.warn('VideoRecorder: No web mock available for flipCamera');
 		return Promise.resolve();
 	}
+
 	addPreviewFrameConfig(config: VideoRecorderPreviewFrame): Promise<void> {
 		if (this.videoElement) {
 			if (!config.id) {
@@ -127,6 +142,7 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 		}
 		return Promise.resolve();
 	}
+
 	editPreviewFrameConfig(config: VideoRecorderPreviewFrame): Promise<void> {
 		if (this.videoElement) {
 			if (!config.id) {
@@ -140,13 +156,14 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 			else {
 				this.addPreviewFrameConfig(config);
 			}
-			if (this.currentFrameConfig.id == config.id) {
+			if (this.currentFrameConfig?.id == config.id) {
 				this.currentFrameConfig = updatedFrame;
 				this._updateCameraView(this.currentFrameConfig);
 			}
 		}
 		return Promise.resolve();
 	}
+
 	switchToPreviewFrame(options: { id: string }): Promise<void> {
 		if (this.videoElement) {
 			if (!options.id) {
@@ -162,29 +179,35 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 		}
 		return Promise.resolve();
 	}
+
 	showPreviewFrame(): Promise<void> {
 		if (this.videoElement) {	
 			this.videoElement.hidden = false;
 		}
 		return Promise.resolve();
 	}
+
 	hidePreviewFrame(): Promise<void> {
 		if (this.videoElement) {	
 			this.videoElement.hidden = true;
 		}
 		return Promise.resolve();
 	}
+
 	startRecording(): Promise<void> {
 		console.warn('VideoRecorder: No web mock available for startRecording');
 		return Promise.resolve();
 	}
+
 	stopRecording(): Promise<{ videoUrl: string }> {
 		console.warn('VideoRecorder: No web mock available for stopRecording');
 		return Promise.resolve({ videoUrl: 'some/file/path' });
 	}
+
 	getDuration(): Promise<{ value: number }> {
 		return Promise.resolve({ value: 0 });
 	}
+
 	addListener(): any {
 		console.warn('VideoRecorder: No web mock available for addListener');
 	}

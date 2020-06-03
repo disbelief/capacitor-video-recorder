@@ -3,7 +3,7 @@ import { VideoRecorderPlugin, VideoRecorderOptions, VideoRecorderPreviewFrame } 
 declare class DropShadow {
     opacity?: number;
     radius?: number;
-    color?: string;
+    color?: string | null;
     constructor(options?: DropShadow);
 }
 declare class FrameConfig {
@@ -18,10 +18,10 @@ declare class FrameConfig {
     constructor(options?: FrameConfig);
 }
 export declare class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
-    videoElement: HTMLVideoElement;
-    stream: MediaStream;
+    videoElement: HTMLVideoElement | null;
+    stream: MediaStream | null;
     previewFrameConfigs: FrameConfig[];
-    currentFrameConfig: FrameConfig;
+    currentFrameConfig: FrameConfig | undefined;
     constructor();
     private _initializeCameraView;
     private _updateCameraView;
