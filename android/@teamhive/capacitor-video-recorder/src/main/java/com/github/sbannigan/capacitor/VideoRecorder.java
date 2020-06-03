@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.util.DisplayMetrics;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.util.Log;
 
 import com.getcapacitor.FileUtils;
 import com.getcapacitor.JSArray;
@@ -36,6 +37,7 @@ import co.fitcom.fancycamera.VideoEvent;
 )
 public class VideoRecorder extends Plugin {
     static final int REQUEST_CODE = 868;
+    static final String LOG_TAG = "CapVR";
     private FancyCamera fancyCamera;
     private PluginCall call;
     private HashMap<String, FrameConfig> previewFrameConfigs;
@@ -69,6 +71,7 @@ public class VideoRecorder extends Plugin {
     }
 
     private void startCamera() {
+        Log.i(LOG_TAG, "startCamera");
         if (fancyCamera == null || fancyCamera.cameraStarted()) return;
         fancyCamera.start();
     }
@@ -119,6 +122,7 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void initialize(final PluginCall call) {
+        Log.i(LOG_TAG, "initialize");
         JSObject defaultFrame = new JSObject();
         defaultFrame.put("id", "default");
         currentFrameConfig = new FrameConfig(defaultFrame);
@@ -128,6 +132,7 @@ public class VideoRecorder extends Plugin {
         fancyCamera = new FancyCamera(this.getContext());
         fancyCamera.setListener(new CameraEventListenerUI() {
             public void onCameraOpenUI() {
+                Log.i(LOG_TAG, "onCameraOpenUI");
                 if (getCall() != null) {
                     getCall().success();
                 }
@@ -136,6 +141,7 @@ public class VideoRecorder extends Plugin {
             }
 
             public void onCameraCloseUI() {
+                Log.i(LOG_TAG, "onCameraCloseUI");
                 if (getCall() != null) {
                     getCall().success();
                 }
@@ -149,9 +155,11 @@ public class VideoRecorder extends Plugin {
 
             @Override
             public void onVideoEventUI(VideoEvent event) {
+                Log.i(LOG_TAG, String.format("onVideoEventUI type: %s message: %s", event.getType().name(), event.getMessage()));
                 if (event.getType() == EventType.INFO &&
                         event
                                 .getMessage().contains(VideoEvent.EventInfo.RECORDING_FINISHED.toString())) {
+                    Log.i(LOG_TAG, "onVideoEventUI RECORDING_FINISHED");
                     if (getCall() != null) {
                         JSObject object = new JSObject();
                         String path = FileUtils.getPortablePath(getContext(), bridge.getLocalUrl(), Uri.fromFile(event.getFile()));
@@ -166,6 +174,7 @@ public class VideoRecorder extends Plugin {
                 } else if (event.getType() == EventType.INFO &&
                         event
                                 .getMessage().contains(VideoEvent.EventInfo.RECORDING_STARTED.toString())) {
+                    Log.i(LOG_TAG, "onVideoEventUI RECORDING_STARTED");
                     if (getCall() != null) {
                         getCall().success();
                     }
@@ -213,9 +222,11 @@ public class VideoRecorder extends Plugin {
             }
 
             if (!fancyCamera.cameraStarted()) {
+                Log.i(LOG_TAG, "camera not started yet, starting");
                 startCamera();
             }
         } else {
+            Log.i(LOG_TAG, "permissions required first...");
             fancyCamera.requestPermission();
         }
 
@@ -241,6 +252,7 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void showPreviewFrame(PluginCall call) {
+        Log.i(LOG_TAG, "showPreviewFrame");
         int position = call.getInt("position");
         int quality = call.getInt("quality");
         this.audio = call.getBoolean("audio", this.audio);
@@ -249,9 +261,11 @@ public class VideoRecorder extends Plugin {
         fancyCamera.setEnableAudioLevels(this.audio);
         bridge.getWebView().setBackgroundColor(Color.argb(0, 0, 0, 0));
         if (!fancyCamera.cameraStarted()) {
+            Log.i(LOG_TAG, "showPreviewFrame not started yet, starting");
             startCamera();
             this.call = call;
         } else {
+            Log.i(LOG_TAG, "showPreviewFrame camera already started");
             call.success();
         }
     }
@@ -270,13 +284,21 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void startRecording(PluginCall call) {
+        Log.i(LOG_TAG, "startRecording");
         this.call = call;
-        fancyCamera.startRecording();
-        // call.success();
+        try {
+            fancyCamera.startRecording();
+            // call.success();
+        } catch (Exception e) {
+            String msg = String.format("startRecording failed %s", e.toString());
+            Log.e(LOG_TAG, msg, e);
+            call.error(msg, e);
+        }
     }
 
     @PluginMethod()
     public void stopRecording(PluginCall call) {
+        Log.i(LOG_TAG, "stopRecording");
         this.call = call;
         fancyCamera.stopRecording();
     }
@@ -296,18 +318,21 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void setPosition(PluginCall call) {
+        Log.i(LOG_TAG, "setPosition");
         int position = call.getInt("position");
         fancyCamera.setCameraPosition(position);
     }
 
     @PluginMethod()
     public void setQuality(PluginCall call) {
+        Log.i(LOG_TAG, "setQuality");
         int quality = call.getInt("quality");
         fancyCamera.setQuality(quality);
     }
 
     @PluginMethod()
     public void addPreviewFrameConfig(PluginCall call) {
+        Log.i(LOG_TAG, "addPreviewFrameConfig");
         if (fancyCamera.cameraStarted()) {
             String layerId = call.getString("id");
             if (layerId.isEmpty()) {
@@ -329,6 +354,7 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void editPreviewFrameConfig(PluginCall call) {
+        Log.i(LOG_TAG, "editPreviewFrameConfig");
         if (fancyCamera.cameraStarted()) {
             String layerId = call.getString("id");
             if (layerId.isEmpty()) {
@@ -351,6 +377,7 @@ public class VideoRecorder extends Plugin {
 
     @PluginMethod()
     public void switchToPreviewFrame(PluginCall call) {
+        Log.i(LOG_TAG, "switchToPreviewFrame");
         if (fancyCamera.cameraStarted()) {
             String layerId = call.getString("id");
             if (layerId.isEmpty()) {
@@ -377,7 +404,7 @@ public class VideoRecorder extends Plugin {
     }
 
     private void updateCameraView(final FrameConfig frameConfig) {
-
+        Log.i(LOG_TAG, "updateCameraView");
         DisplayMetrics displayMetrics = new DisplayMetrics();
         getActivity().getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
         int deviceHeight = displayMetrics.heightPixels;
