@@ -45,6 +45,7 @@ export class VideoRecorderWeb extends WebPlugin {
         this.currentFrameConfig = new FrameConfig({ id: 'default' });
         this.videoElement = null;
         this.stream = null;
+        this.recorder = null;
     }
     _initializeCameraView() {
         let element = document.createElement('video');
@@ -87,7 +88,11 @@ export class VideoRecorderWeb extends WebPlugin {
             this.videoElement.hidden = false;
         }
         if ((_a = navigator.mediaDevices) === null || _a === void 0 ? void 0 : _a.getUserMedia) {
-            this.stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            this.stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: (options === null || options === void 0 ? void 0 : options.audio) || true
+            });
+            this.recorder = new MediaRecorder(this.stream);
             if (this.videoElement) {
                 this.videoElement.srcObject = this.stream;
             }

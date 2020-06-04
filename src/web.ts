@@ -1,5 +1,11 @@
 import { WebPlugin, registerWebPlugin } from '@capacitor/core';
-import { VideoRecorderPlugin, VideoRecorderOptions, VideoRecorderPreviewFrame } from './definitions';
+import {
+	VideoRecorderPlugin,
+	VideoRecorderOptions,
+	VideoRecorderPreviewFrame,
+	VideoRecorderCamera,
+	VideoRecorderQuality
+} from './definitions';
 
 class DropShadow {
 	opacity?: number;
@@ -44,10 +50,36 @@ class FrameConfig {
 	}
 }
 
+interface MediaStreamDimensions {
+	min?: number,
+	max?: number,
+	ideal?: number,
+	exact?: number
+}
+
+interface MediaStreamCamera {
+	exact?: 'user' | 'environment';
+}
+
+interface MediaStreamConstraints {
+	width: number | MediaStreamDimensions,
+	height: number | MediaStreamDimensions,
+	facingMode: 'user' | 'environment' | MediaStreamCamera
+}
+
+interface MediaRecorderDataAvailable {
+	data: Blob
+}
+
 export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 
-	videoElement: HTMLVideoElement | null;
-	stream: MediaStream | null;
+	videoElement: HTMLVideoElement | null = null;
+	stream: MediaStream | null = null;
+	recorder: MediaRecorder | null = null;
+	camera: VideoRecorderCamera = VideoRecorderCamera.FRONT;
+	quality: VideoRecorderQuality = VideoRecorderQuality.HIGHEST;
+	outputChunks: Blob[] = [];
+	dataAvailable: boolean = false;
 
 	previewFrameConfigs: FrameConfig[] = [];
 	currentFrameConfig: FrameConfig | undefined = new FrameConfig({id: 'default'});
@@ -57,8 +89,6 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 			name: 'VideoRecorder',
 			platforms: ['web']
 		});
-		this.videoElement = null;
-		this.stream = null;
 	}
 
 	private _initializeCameraView(): HTMLVideoElement {
@@ -75,6 +105,26 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 		return element;
 	}
 
+	private _mediaStreamConstraints(): MediaStreamConstraints {
+		const facingMode = this.camera === VideoRecorderCamera.BACK ? 'environment' : 'user';
+		switch (this.quality) {
+			case VideoRecorderQuality.MAX_480P:
+				return { width: 480, height: 720, facingMode };
+			case VideoRecorderQuality.MAX_720P:
+				return { width: 720, height: 1280, facingMode };
+			case VideoRecorderQuality.MAX_1080P:
+				return { width: 1920, height: 1080, facingMode };
+			case VideoRecorderQuality.MAX_2160P:
+				return { width: 2160, height: 3840, facingMode };
+			case VideoRecorderQuality.LOWEST:
+				return { width: 480, height: 720, facingMode };
+			case VideoRecorderQuality.QVGA:
+				return { width: 240, height: 320, facingMode };
+			default:
+				return { width: 2160, height: 3840, facingMode };
+		}
+	}
+
 	private _updateCameraView(config: FrameConfig): void {
 		if (this.videoElement !== null) {
 			this.videoElement.style.width = config.width === 'fill' ? '100vw' : `${config.width}px`;
@@ -87,13 +137,26 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 		}
 	}
 
+	private _onDataAvailable(event: MediaRecorderDataAvailable): void {
+		this.outputChunks.push(event.data);
+	}
+
+	private _onStop(): void {
+		this.dataAvailable = true;
+	}
+
 	async initialize(options?: VideoRecorderOptions): Promise<void> {
-		console.warn('VideoRecorder: Web implementation is currently for mock purposes only, recording is not available');
 		if (options?.previewFrames) {
 			let framesNumber = options.previewFrames.length;
 			let previewFrames = framesNumber > 0 ? options.previewFrames : [{id: 'default'}];
 			this.previewFrameConfigs = previewFrames.map(config => new FrameConfig(config));
 			this.currentFrameConfig = this.previewFrameConfigs[0];
+		}
+		if (options?.camera) {
+			this.camera = options?.camera;
+		}
+		if (options?.quality) {
+			this.quality = options?.quality;
 		}
 		
 		this.videoElement = this._initializeCameraView();
@@ -106,7 +169,13 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 		}
 
 		if (navigator.mediaDevices?.getUserMedia) {
-			this.stream = await navigator.mediaDevices.getUserMedia({video: true})
+			this.stream = await navigator.mediaDevices.getUserMedia({
+				video: this._mediaStreamConstraints(),
+				audio: options?.audio || true
+			})
+			this.recorder = new MediaRecorder(this.stream, { mimeType: 'video/mp4' });
+			this.recorder.onstop = this._onStop;
+			this.recorder.ondataavailable = this._onDataAvailable;
 			if (this.videoElement) {
 				this.videoElement.srcObject = this.stream;
 			}
@@ -114,7 +183,7 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
     return Promise.resolve();
 	}
 
-	destroy(): Promise<any> {
+	destroy(): Promise<void> {
 		this.videoElement?.remove();
 		this.previewFrameConfigs = [];
 		this.currentFrameConfig = undefined;
@@ -124,6 +193,7 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 
 	flipCamera(): Promise<void> {
 		console.warn('VideoRecorder: No web mock available for flipCamera');
+		// TODO implement
 		return Promise.resolve();
 	}
 
@@ -195,13 +265,45 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 	}
 
 	startRecording(): Promise<void> {
-		console.warn('VideoRecorder: No web mock available for startRecording');
+		if (!this.recorder) {
+			throw new Error('No MediaRecorder exists to start');
+		}
+		if (this.recorder.state === 'inactive' || this.recorder.state === 'paused') {
+			this.outputChunks = [];
+			this.recorder.start(); // timeslices not supported in Safari yet
+		} else {
+			console.warn(`VideoRecorder: recorder can not be started in ${this.recorder.state} state`);
+		}
 		return Promise.resolve();
 	}
 
 	stopRecording(): Promise<{ videoUrl: string }> {
-		console.warn('VideoRecorder: No web mock available for stopRecording');
-		return Promise.resolve({ videoUrl: 'some/file/path' });
+		// return Promise.resolve({ videoUrl: 'some/file/path' });
+		if (!this.recorder) {
+			throw new Error('No MediaRecorder exists to stop');
+		}
+		return new Promise((resolve, reject) => {
+			this.recorder?.stop();
+			let pollCount: number = 0;
+			let pollInterval: number | undefined;
+			pollInterval = setInterval(() => {
+				pollCount += 1;
+				if (this.dataAvailable) {
+					clearInterval(pollInterval);
+					let outputBlob = new Blob(this.outputChunks, { 'type' : 'video/mp4' });
+					var videoUrl = URL.createObjectURL(outputBlob);
+					this.dataAvailable = false;
+					this.outputChunks = [];
+					resolve({ videoUrl });
+				}
+				if (pollCount >= 500) {
+					if (pollInterval) {
+						clearInterval(pollInterval);
+					}
+					reject(new Error('MediaRecorder did not stop in time'));
+				}
+			}, 10);
+		});
 	}
 
 	getDuration(): Promise<{ value: number }> {
