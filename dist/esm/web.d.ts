@@ -1,6 +1,6 @@
 /// <reference types="dom-mediacapture-record" />
 import { WebPlugin } from '@capacitor/core';
-import { VideoRecorderPlugin, VideoRecorderOptions, VideoRecorderPreviewFrame } from './definitions';
+import { VideoRecorderPlugin, VideoRecorderOptions, VideoRecorderPreviewFrame, VideoRecorderCamera, VideoRecorderQuality } from './definitions';
 declare class DropShadow {
     opacity?: number;
     radius?: number;
@@ -22,11 +22,19 @@ export declare class VideoRecorderWeb extends WebPlugin implements VideoRecorder
     videoElement: HTMLVideoElement | null;
     stream: MediaStream | null;
     recorder: MediaRecorder | null;
+    camera: VideoRecorderCamera;
+    quality: VideoRecorderQuality;
+    outputChunks: Blob[];
+    dataAvailable: boolean;
+    mimeType: string;
     previewFrameConfigs: FrameConfig[];
     currentFrameConfig: FrameConfig | undefined;
     constructor();
     private _initializeCameraView;
+    private _mediaStreamConstraints;
     private _updateCameraView;
+    private _onDataAvailable;
+    private _onStop;
     initialize(options?: VideoRecorderOptions): Promise<void>;
     destroy(): Promise<void>;
     flipCamera(): Promise<void>;
@@ -40,6 +48,7 @@ export declare class VideoRecorderWeb extends WebPlugin implements VideoRecorder
     startRecording(): Promise<void>;
     stopRecording(): Promise<{
         videoUrl: string;
+        mimeType?: string;
     }>;
     getDuration(): Promise<{
         value: number;

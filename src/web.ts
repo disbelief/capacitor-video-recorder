@@ -80,6 +80,7 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 	quality: VideoRecorderQuality = VideoRecorderQuality.HIGHEST;
 	outputChunks: Blob[] = [];
 	dataAvailable: boolean = false;
+	mimeType: string = 'video/mp4';
 
 	previewFrameConfigs: FrameConfig[] = [];
 	currentFrameConfig: FrameConfig | undefined = new FrameConfig({id: 'default'});
@@ -138,10 +139,12 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 	}
 
 	private _onDataAvailable(event: MediaRecorderDataAvailable): void {
+		console.log('VideoRecorder._onDataAvailable', event);
 		this.outputChunks.push(event.data);
 	}
 
 	private _onStop(): void {
+		console.log('VideoRecorder._onStop', event);
 		this.dataAvailable = true;
 	}
 
@@ -171,11 +174,12 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 		if (navigator.mediaDevices?.getUserMedia) {
 			this.stream = await navigator.mediaDevices.getUserMedia({
 				video: this._mediaStreamConstraints(),
-				audio: options?.audio || true
+				audio: !options?.audio === false
 			})
-			this.recorder = new MediaRecorder(this.stream, { mimeType: 'video/mp4' });
-			this.recorder.onstop = this._onStop;
-			this.recorder.ondataavailable = this._onDataAvailable;
+			this.mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm;codecs=h264';
+			this.recorder = new MediaRecorder(this.stream, { mimeType: this.mimeType });
+			this.recorder.onstop = this._onStop.bind(this);
+			this.recorder.ondataavailable = this._onDataAvailable.bind(this);
 			if (this.videoElement) {
 				this.videoElement.srcObject = this.stream;
 			}
@@ -265,8 +269,10 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 	}
 
 	startRecording(): Promise<void> {
+		console.log('VideoRecorder.startRecording');
 		if (!this.recorder) {
-			throw new Error('No MediaRecorder exists to start');
+			console.warn('VideoRecorder: No web mock available for startRecording');
+			return Promise.resolve();
 		}
 		if (this.recorder.state === 'inactive' || this.recorder.state === 'paused') {
 			this.outputChunks = [];
@@ -277,24 +283,29 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 		return Promise.resolve();
 	}
 
-	stopRecording(): Promise<{ videoUrl: string }> {
-		// return Promise.resolve({ videoUrl: 'some/file/path' });
+	// Returns a promise that resolves with { videoUrl: 'some/file/path', mimeType: 'video/whatever' }
+	stopRecording(): Promise<{ videoUrl: string, mimeType?: string }> {
+		console.log('VideoRecorder.stopRecording');
 		if (!this.recorder) {
-			throw new Error('No MediaRecorder exists to stop');
+			console.warn('VideoRecorder: No web mock available for stopRecording');
+			return Promise.resolve({ videoUrl: 'some/file/path' });
 		}
 		return new Promise((resolve, reject) => {
+			// TODO: Attach the onStop listener here, and resolve() from inside it. no need to poll
 			this.recorder?.stop();
 			let pollCount: number = 0;
 			let pollInterval: number | undefined;
+			console.log('VideoRecorder.stopRecording begin polling');
 			pollInterval = setInterval(() => {
 				pollCount += 1;
+				console.log('VideoRecorder.stopRecording poll pollCount', pollCount, this.dataAvailable);
 				if (this.dataAvailable) {
 					clearInterval(pollInterval);
-					let outputBlob = new Blob(this.outputChunks, { 'type' : 'video/mp4' });
+					let outputBlob = new Blob(this.outputChunks, { 'type' : this.mimeType });
 					var videoUrl = URL.createObjectURL(outputBlob);
 					this.dataAvailable = false;
 					this.outputChunks = [];
-					resolve({ videoUrl });
+					resolve({ videoUrl, mimeType: this.mimeType });
 				}
 				if (pollCount >= 500) {
 					if (pollInterval) {
