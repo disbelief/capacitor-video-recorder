@@ -1,9 +1,10 @@
+/// <reference types="dom-mediacapture-record" />
 import { WebPlugin } from '@capacitor/core';
-import { VideoRecorderPlugin, VideoRecorderOptions, VideoRecorderPreviewFrame } from './definitions';
+import { VideoRecorderPlugin, VideoRecorderOptions, VideoRecorderPreviewFrame, VideoRecorderCamera, VideoRecorderQuality } from './definitions';
 declare class DropShadow {
     opacity?: number;
     radius?: number;
-    color?: string;
+    color?: string | null;
     constructor(options?: DropShadow);
 }
 declare class FrameConfig {
@@ -18,15 +19,22 @@ declare class FrameConfig {
     constructor(options?: FrameConfig);
 }
 export declare class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
-    videoElement: HTMLVideoElement;
-    stream: MediaStream;
+    videoElement: HTMLVideoElement | null;
+    stream: MediaStream | null;
+    recorder: MediaRecorder | null;
+    camera: VideoRecorderCamera;
+    quality: VideoRecorderQuality;
+    mimeType: string;
+    startedAt: Date | null;
+    endedAt: Date | null;
     previewFrameConfigs: FrameConfig[];
-    currentFrameConfig: FrameConfig;
+    currentFrameConfig: FrameConfig | undefined;
     constructor();
     private _initializeCameraView;
+    private _mediaStreamConstraints;
     private _updateCameraView;
     initialize(options?: VideoRecorderOptions): Promise<void>;
-    destroy(): Promise<any>;
+    destroy(): Promise<void>;
     flipCamera(): Promise<void>;
     addPreviewFrameConfig(config: VideoRecorderPreviewFrame): Promise<void>;
     editPreviewFrameConfig(config: VideoRecorderPreviewFrame): Promise<void>;
@@ -38,6 +46,7 @@ export declare class VideoRecorderWeb extends WebPlugin implements VideoRecorder
     startRecording(): Promise<void>;
     stopRecording(): Promise<{
         videoUrl: string;
+        mimeType?: string;
     }>;
     getDuration(): Promise<{
         value: number;

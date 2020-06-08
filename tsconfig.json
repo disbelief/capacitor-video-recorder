@@ -5,16 +5,18 @@
     "experimentalDecorators": true,
     "lib": [
       "dom",
-      "es2015"
+      "es2017"
     ],
-    "module": "es2015",
+    "module": "ES6",
     "moduleResolution": "node",
     "noImplicitAny": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "esModuleInterop": true,
     "outDir": "dist/esm",
     "sourceMap": true,
-    "target": "es2015"
+    "target": "es2017",
+    "strict": true,
   },
   "files": [
     "src/index.ts"
