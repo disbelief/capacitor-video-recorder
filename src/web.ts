@@ -162,7 +162,11 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 				video: this._mediaStreamConstraints(),
 				audio: !options?.audio === false
 			})
-			this.mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm;codecs=h264';
+			let isMp4Supported = Boolean(
+				!Object.prototype.hasOwnProperty.call(MediaRecorder, 'isTypeSupported') ||
+				MediaRecorder.isTypeSupported('video/mp4')
+			);
+			this.mimeType = isMp4Supported ? 'video/mp4' : 'video/webm;codecs=h264';
 			this.recorder = new MediaRecorder(this.stream, { mimeType: this.mimeType });
 			if (this.videoElement) {
 				this.videoElement.srcObject = this.stream;
