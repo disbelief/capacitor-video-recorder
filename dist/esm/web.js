@@ -220,7 +220,6 @@ export class VideoRecorderWeb extends WebPlugin {
         return Promise.resolve();
     }
     startRecording() {
-        console.log('VideoRecorder.startRecording');
         if (!this.recorder) {
             console.warn('VideoRecorder: No web mock available for startRecording');
             return Promise.resolve();
@@ -248,7 +247,6 @@ export class VideoRecorderWeb extends WebPlugin {
             }
             let chunks = [];
             mediaRecorder.ondataavailable = (event) => {
-                console.log('VideoRecorder.ondataavailable', event);
                 chunks.push(event.data);
             };
             mediaRecorder.onstop = () => {

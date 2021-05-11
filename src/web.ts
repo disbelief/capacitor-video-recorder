@@ -277,7 +277,6 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 	}
 
 	startRecording(): Promise<void> {
-		console.log('VideoRecorder.startRecording')
 		if (!this.recorder) {
 			console.warn('VideoRecorder: No web mock available for startRecording')
 			return Promise.resolve()
@@ -305,7 +304,6 @@ export class VideoRecorderWeb extends WebPlugin implements VideoRecorderPlugin {
 			}
 			let chunks: Blob[] = []
 			mediaRecorder.ondataavailable = (event: BlobEvent) => {
-				console.log('VideoRecorder.ondataavailable', event)
 				chunks.push(event.data)
 			}
 			mediaRecorder.onstop = () => {
