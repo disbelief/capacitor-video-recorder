@@ -24,7 +24,7 @@ export declare class VideoRecorderWeb extends WebPlugin implements VideoRecorder
     recorder: MediaRecorder | null;
     camera: VideoRecorderCamera;
     quality: VideoRecorderQuality;
-    mimeType: string;
+    mimeType?: string;
     startedAt: Date | null;
     endedAt: Date | null;
     previewFrameConfigs: FrameConfig[];
@@ -33,6 +33,7 @@ export declare class VideoRecorderWeb extends WebPlugin implements VideoRecorder
     private _initializeCameraView;
     private _mediaStreamConstraints;
     private _updateCameraView;
+    private _decideMimeType;
     initialize(options?: VideoRecorderOptions): Promise<void>;
     destroy(): Promise<void>;
     flipCamera(): Promise<void>;

@@ -1,5 +1,5 @@
 import { WebPlugin, registerWebPlugin } from '@capacitor/core';
-import { VideoRecorderCamera, VideoRecorderQuality } from './definitions';
+import { VideoRecorderCamera, VideoRecorderQuality, } from './definitions';
 class DropShadow {
     constructor(options = {}) {
         this.opacity = options.opacity || 0;
@@ -7,11 +7,13 @@ class DropShadow {
         this.color = hexToRgb(options.color || '#000000');
         function hexToRgb(hex) {
             let shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-            let fullHex = hex = hex.replace(shorthandRegex, function (_m, r, g, b) {
+            let fullHex = (hex = hex.replace(shorthandRegex, function (_m, r, g, b) {
                 return r + r + g + g + b + b;
-            });
+            }));
             let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
-            return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : null;
+            return result
+                ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+                : null;
         }
     }
 }
@@ -31,14 +33,14 @@ export class VideoRecorderWeb extends WebPlugin {
     constructor() {
         super({
             name: 'VideoRecorder',
-            platforms: ['web']
+            platforms: ['web'],
         });
         this.videoElement = null;
         this.stream = null;
         this.recorder = null;
         this.camera = VideoRecorderCamera.FRONT;
         this.quality = VideoRecorderQuality.HIGHEST;
-        this.mimeType = 'video/mp4';
+        this.mimeType = undefined;
         this.startedAt = null;
         this.endedAt = null;
         this.previewFrameConfigs = [];
@@ -87,12 +89,26 @@ export class VideoRecorderWeb extends WebPlugin {
             this.videoElement.style.boxShadow = `0 0 ${((_a = config.dropShadow) === null || _a === void 0 ? void 0 : _a.radius) || 0}px 0 rgba(${(_b = config.dropShadow) === null || _b === void 0 ? void 0 : _b.color}, ${(_c = config.dropShadow) === null || _c === void 0 ? void 0 : _c.opacity})`;
         }
     }
+    _decideMimeType() {
+        const isQueriable = Object.prototype.hasOwnProperty.call(MediaRecorder, 'isTypeSupported');
+        const allowIfSupported = (codec) => isQueriable && MediaRecorder.isTypeSupported(codec) ? codec : false;
+        /** @see available options at @link https://developer.mozilla.org/en-US/docs/Web/Media/Formats/codecs_parameter */
+        const supported = [
+            allowIfSupported('video/mp4'),
+            allowIfSupported('video/mp4; codecs=avc1.4d002a'),
+            allowIfSupported('video/webm; codecs=h264'),
+            allowIfSupported('video/webm'),
+            undefined,
+        ].filter((codec) => codec !== false);
+        // Will return either first supported codec by priority or default to undefined
+        return supported[0];
+    }
     async initialize(options) {
         var _a;
         if (options === null || options === void 0 ? void 0 : options.previewFrames) {
             let framesNumber = options.previewFrames.length;
             let previewFrames = framesNumber > 0 ? options.previewFrames : [{ id: 'default' }];
-            this.previewFrameConfigs = previewFrames.map(config => new FrameConfig(config));
+            this.previewFrameConfigs = previewFrames.map((config) => new FrameConfig(config));
             this.currentFrameConfig = this.previewFrameConfigs[0];
         }
         if (options === null || options === void 0 ? void 0 : options.camera) {
@@ -111,11 +127,9 @@ export class VideoRecorderWeb extends WebPlugin {
         if ((_a = navigator.mediaDevices) === null || _a === void 0 ? void 0 : _a.getUserMedia) {
             this.stream = await navigator.mediaDevices.getUserMedia({
                 video: this._mediaStreamConstraints(),
-                audio: !(options === null || options === void 0 ? void 0 : options.audio) === false
+                audio: !(options === null || options === void 0 ? void 0 : options.audio) === false,
             });
-            let isMp4Supported = Boolean(!Object.prototype.hasOwnProperty.call(MediaRecorder, 'isTypeSupported') ||
-                MediaRecorder.isTypeSupported('video/mp4'));
-            this.mimeType = isMp4Supported ? 'video/mp4' : 'video/webm;codecs=h264';
+            this.mimeType = this._decideMimeType();
             this.recorder = new MediaRecorder(this.stream, { mimeType: this.mimeType });
             if (this.videoElement) {
                 this.videoElement.srcObject = this.stream;
@@ -128,7 +142,7 @@ export class VideoRecorderWeb extends WebPlugin {
         (_a = this.videoElement) === null || _a === void 0 ? void 0 : _a.remove();
         this.previewFrameConfigs = [];
         this.currentFrameConfig = undefined;
-        (_b = this.stream) === null || _b === void 0 ? void 0 : _b.getTracks().forEach(track => track.stop());
+        (_b = this.stream) === null || _b === void 0 ? void 0 : _b.getTracks().forEach((track) => track.stop());
         this.recorder = null;
         this.stream = null;
         this.startedAt = null;
@@ -146,7 +160,7 @@ export class VideoRecorderWeb extends WebPlugin {
                 return Promise.reject('id required');
             }
             let newFrame = new FrameConfig(config);
-            if (this.previewFrameConfigs.map(config => config.id).indexOf(newFrame.id) === -1) {
+            if (this.previewFrameConfigs.map((config) => config.id).indexOf(newFrame.id) === -1) {
                 this.previewFrameConfigs.push(newFrame);
             }
             else {
@@ -162,7 +176,9 @@ export class VideoRecorderWeb extends WebPlugin {
                 return Promise.reject('id required');
             }
             let updatedFrame = new FrameConfig(config);
-            let existingIndex = this.previewFrameConfigs.map(config => config.id).indexOf(updatedFrame.id);
+            let existingIndex = this.previewFrameConfigs
+                .map((config) => config.id)
+                .indexOf(updatedFrame.id);
             if (existingIndex !== -1) {
                 this.previewFrameConfigs[existingIndex] = updatedFrame;
             }
@@ -181,7 +197,7 @@ export class VideoRecorderWeb extends WebPlugin {
             if (!options.id) {
                 return Promise.reject('id required');
             }
-            let config = this.previewFrameConfigs.filter(config => config.id === options.id);
+            let config = this.previewFrameConfigs.filter((config) => config.id === options.id);
             if (config.length > 0) {
                 this._updateCameraView(config[0]);
             }
@@ -221,7 +237,6 @@ export class VideoRecorderWeb extends WebPlugin {
     }
     // Returns a promise that resolves with { videoUrl: 'some/file/path', mimeType: 'video/whatever' }
     stopRecording() {
-        console.log('VideoRecorder.stopRecording');
         return new Promise((resolve, reject) => {
             let mediaRecorder = this.recorder;
             if (mediaRecorder === null) {
@@ -237,7 +252,7 @@ export class VideoRecorderWeb extends WebPlugin {
                 chunks.push(event.data);
             };
             mediaRecorder.onstop = () => {
-                let outputBlob = new Blob(chunks, { 'type': this.mimeType });
+                let outputBlob = new Blob(chunks, { type: this.mimeType });
                 let videoUrl = URL.createObjectURL(outputBlob);
                 this.endedAt = new Date();
                 resolve({ videoUrl, mimeType: this.mimeType });
